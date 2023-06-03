@@ -4,10 +4,9 @@
   "main": "index.html",
   "scripts": {
     "dev": "vite",
-    "build": "run-p type-check build-only",
+    "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview --port 4173",
-    "build-only": "vite build",
     "type-check": "vue-tsc --noEmit",
     "e:dev": "yarn build && cp -r electron/. dist && cd dist && yarn && yarn dev",
     "e:build": "yarn build && cp -r electron/. dist && cd dist && yarn && yarn build",
