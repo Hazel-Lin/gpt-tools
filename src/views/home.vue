@@ -26,23 +26,27 @@ const toolList = ref([
     name: '小红书',
     p: '用小红书的风格针对这段内容做修改，要求内容生动。',
     active: false,
+    placeholder: '请输入一段文案，我们将用小红书的风格修饰它',
   },
   {
     icon: '😁',
     name: '小工具',
     p: '将这个对象生成一个对象数组，其中的key翻译成中文作为label的值，其中的value作为‘value’的值放入到这个对象数组中，请直接返回代码，无需太多过程描述。',
     active: false,
+    placeholder: '请直接输入一个对象',
   },
 ])
+const isShowHint = ref(true)
 
 async function sendChatMessage(content: string = messageContent.value) {
   try {
     isTalking.value = true
+    isShowHint.value = false
     if (messageList.value.length === 2)
       messageList.value.pop()
     messageList.value.push({ role: 'user', content: prompt.value })
     messageList.value.push({ role: 'user', content })
-    clearMessageContent()
+    // clearMessageContent()
     messageList.value.push({ role: 'assistant', content: '' })
 
     const { body, status } = await chat(messageList.value, getAPIKey())
@@ -99,6 +103,12 @@ async function readStream(reader: ReadableStreamDefaultReader<Uint8Array>,
     }
   }
 }
+// 重置key
+function resetKey() {
+  localStorage.setItem('apiKey', '')
+  apiKey = ''
+  isConfig.value = true
+}
 
 function appendLastMessageContent(content: string) {
   return messageList.value[messageList.value.length - 1].content += content
@@ -151,10 +161,19 @@ function scrollToBottom() {
 watch(messageList.value, () => nextTick(() => scrollToBottom()))
 
 const prompt = ref('')
+const placeholder = ref('')
 function handleClick(item) {
+  if (messageContent.value)
+    messageContent.value = ''
   prompt.value = item.p
+  placeholder.value = item.placeholder
   toolList.value.map(tool => tool.active = false)
   item.active = true
+}
+function handleCancel() {
+  prompt.value = ''
+  placeholder.value = ''
+  toolList.value.map(tool => tool.active = false)
 }
 </script>
 
@@ -168,49 +187,75 @@ function handleClick(item) {
         <input
           v-model="APIKeyContent"
           class="input"
-          :type="isConfig ? 'password' : 'text'"
+          type="password"
           placeholder="Please input your key:sk-xxxxxxxxxx"
           @keydown.enter="sendOrSave()"
         >
-        <button text-white :disabled="!APIKeyContent" bg-pink rounded-md p-2 box-border @click="sendOrSave()">
-          save
+        <button text-white bg-pink rounded-md p-2 box-border @click="apiKey ? resetKey() : sendOrSave()">
+          {{ apiKey ? 'reset' : 'save' }}
         </button>
       </div>
     </div>
-    <div flex mb10px class="new-chat_mask">
-      <div
-        v-for="item, index in toolList"
-        :key="index"
-        flex
-        items-center
-        class="new-chat_mask__HbHeX"
-        bg="#1e1e1e"
+    <div flex>
+      <div flex mb10px class="new-chat_mask">
+        <div
+          v-for="item, index in toolList"
+          :key="index"
+          flex
+          items-center
+          max-w-8em
+          rd-10px
+          class="new-chat_mask__HbHeX"
+          cursor-pointer
+          bg="#1e1e1e"
+          mb10
+          mr10px
+          px14px
+          py10px
+          :class="{ 'new-chat_mask--active': item.active }"
+          @click="handleClick(item)"
+        >
+          <div class="user-avatar" min-h-30px min-w-30px rd-10px h30px w30px flex items-center justify-center>
+            {{ item.icon }}
+          </div>
+          <div ml10px class="one-line" color="#bbb">
+            {{ item.name }}
+          </div>
+        </div>
+      </div>
+      <button
+        text-white
         mb10
         mr10px
         px14px
         py10px
-        :class="{ 'new-chat_mask--active': item.active }"
-        @click="handleClick(item)"
+        h50px
+        bg-pink
+        rounded-md
+        box-border
+        :disabled="!prompt"
+        @click="handleCancel"
       >
-        <div class="user-avatar" h30px w30px flex items-center justify-center>
-          {{ item.icon }}
-        </div>
-        <div ml10px class="one-line" color="#bbb">
-          {{ item.name }}
-        </div>
-      </div>
+        Cancel
+      </button>
     </div>
     <div flex justify-between mt-3>
       <div w="45%">
-        <textarea v-model="messageContent" w="100%" w-full h-500px bg="#1e1e1e" shadow-md rounded-md outline-none p-2 box-border text-white placeholder="Type something..." />
+        <textarea v-model="messageContent" text-slate-600 w="100%" fs-14 w-full h-500px bg="#1e1e1e" text-size-14px shadow-md rounded-md outline-none p-2 box-border :placeholder="placeholder || 'Please input your message'" />
       </div>
       <div flex items-center>
-        <button text-white :disabled="isTalking" bg-pink rounded-md p-2 box-border @click="sendChatMessage">
+        <button text-white :disabled="isTalking || !apiKey" bg-pink rounded-md p-2 box-border @click="sendChatMessage()">
           Answer
         </button>
       </div>
       <div w="45%">
-        <div ref="chatListDom" w-full h-200px bg="#1e1e1e" text-white shadow-md rounded-md p-2 h-500px>
+        <div ref="chatListDom" w-full h-200px bg="#1e1e1e" text-white shadow-md rounded-md p-2 h-500px overflow-y-auto>
+          <div
+            v-if="isShowHint"
+            class="text-sm leading-relaxed text-slate-600"
+          >
+            Hello, I'm ChatGPT-3.5, how can I help you?
+          </div>
           <div
             v-for="item, index of messageList.filter((v) => v.role === 'assistant')"
             :key="index"
@@ -220,12 +265,6 @@ function handleClick(item) {
               class="text-sm leading-relaxed text-slate-600"
               v-html="md.render(item.content)"
             />
-            <div
-              v-else
-              class="text-sm leading-relaxed text-slate-600"
-            >
-              Hello, I'm ChatGPT
-            </div>
           </div>
         </div>
       </div>
@@ -245,10 +284,7 @@ pre {
 .new-chat_mask__HbHeX{
     border: 1px solid hsla(0,0%,100%,.192);
     box-shadow: 0px 2px 4px 0px rgba(0,0,0,.05);
-    border-radius: 10px;
-    max-width: 8em;
     transform: scale(1);
-    cursor: pointer;
     transition: all .3s ease;
 
 }
@@ -258,11 +294,8 @@ pre {
     border-color: pink;
 }
 .user-avatar{
-    min-height: 30px;
-    min-width: 30px;
-    border: 1px solid hsla(0,0%,100%,.192);
-    box-shadow: 0px 2px 4px 0px rgba(0,0,0,.05);
-    border-radius: 10px;
+  border: 1px solid hsla(0,0%,100%,.192);
+  box-shadow: 0px 2px 4px 0px rgba(0,0,0,.05);
 }
 .one-line{
   white-space: nowrap;
@@ -271,5 +304,8 @@ pre {
 }
 .new-chat_mask--active{
   border: 1px solid pink;
+}
+textarea{
+  resize: none;
 }
 </style>
